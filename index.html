@@ -1,0 +1,967 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#002D62" />
+  <meta name="description" content="Plataforma de coordinación de ayuda humanitaria de República Dominicana hacia Venezuela tras los terremotos del 24 de junio de 2026." />
+  <title>Ayuda Solidaria — RD hacia Venezuela</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Lora:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    /* ============================================================
+       TOKENS
+    ============================================================ */
+    :root {
+      --blue:    #002D62;
+      --blue-lt: #1A4A8A;
+      --red:     #CE1126;
+      --gold:    #F2C14E;
+      --gold-lt: #FDF0C4;
+      --sand:    #FAF6EF;
+      --sand-dk: #EDE7DA;
+      --text:    #1A1410;
+      --text-2:  #4A3F35;
+      --white:   #FFFFFF;
+      --shadow:  0 2px 12px rgba(0,45,98,.10);
+      --radius:  12px;
+      --radius-sm: 8px;
+      --font-display: 'Lora', Georgia, serif;
+      --font-body: 'Inter', system-ui, sans-serif;
+    }
+
+    /* ============================================================
+       RESET & BASE
+    ============================================================ */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; font-size: 16px; }
+    body {
+      font-family: var(--font-body);
+      background: var(--sand);
+      color: var(--text);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+    img { display: block; max-width: 100%; }
+    button { cursor: pointer; font-family: inherit; }
+    a { color: var(--blue); }
+    :focus-visible { outline: 3px solid var(--blue-lt); outline-offset: 2px; }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
+    }
+
+    /* ============================================================
+       STATUS BAR (online/offline)
+    ============================================================ */
+    #status-bar {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 1000;
+      padding: 8px 20px;
+      display: flex; align-items: center; gap: 8px;
+      font-size: .8rem; font-weight: 600;
+      transition: transform .3s ease;
+    }
+    #status-bar.online  { background: #1a7a4a; color: #fff; transform: translateY(-100%); }
+    #status-bar.offline { background: #b84a00; color: #fff; transform: translateY(0); }
+    #status-bar.pending { background: var(--gold); color: var(--text); transform: translateY(0); }
+    #status-bar svg { width: 16px; height: 16px; flex-shrink: 0; }
+
+    /* ============================================================
+       NAV
+    ============================================================ */
+    nav {
+      position: sticky; top: 0; z-index: 900;
+      background: var(--blue);
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 12px 20px;
+      box-shadow: 0 2px 8px rgba(0,0,0,.25);
+    }
+    .nav-logo {
+      display: flex; align-items: center; gap: 10px;
+      text-decoration: none;
+    }
+    .nav-logo-flag {
+      display: flex; width: 28px; height: 28px; border-radius: 50%; overflow: hidden; flex-shrink: 0;
+    }
+    .nav-logo-flag span {
+      display: block; width: 50%;
+      background: var(--red);
+    }
+    .nav-logo-flag span:first-child { background: var(--blue); }
+    .nav-title {
+      font-family: var(--font-display);
+      font-size: 1rem; font-weight: 700;
+      color: var(--white);
+      line-height: 1.2;
+    }
+    .nav-title small { display: block; font-size: .65rem; font-weight: 400; opacity: .8; }
+    .nav-links {
+      display: flex; gap: 4px;
+    }
+    .nav-links a {
+      color: rgba(255,255,255,.85);
+      text-decoration: none; font-size: .78rem; font-weight: 500;
+      padding: 6px 10px; border-radius: 6px;
+      transition: background .2s;
+    }
+    .nav-links a:hover { background: rgba(255,255,255,.12); color: #fff; }
+    .nav-hamburger {
+      display: none;
+      background: none; border: none;
+      color: #fff; padding: 4px;
+    }
+
+    @media (max-width: 640px) {
+      .nav-links { display: none; flex-direction: column; position: absolute; top: 56px; left: 0; right: 0; background: var(--blue); padding: 12px; }
+      .nav-links.open { display: flex; }
+      .nav-links a { font-size: .9rem; padding: 10px 12px; }
+      .nav-hamburger { display: block; }
+    }
+
+    /* ============================================================
+       HERO
+    ============================================================ */
+    .hero {
+      background: linear-gradient(160deg, var(--blue) 0%, var(--blue-lt) 60%, #1d3461 100%);
+      padding: 56px 20px 48px;
+      text-align: center;
+      position: relative; overflow: hidden;
+    }
+    .hero::after {
+      content: '';
+      position: absolute; bottom: 0; left: 0; right: 0; height: 40px;
+      background: var(--sand);
+      clip-path: ellipse(60% 100% at 50% 100%);
+    }
+    .hero-eyebrow {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: rgba(242,193,78,.18); border: 1px solid rgba(242,193,78,.4);
+      color: var(--gold); border-radius: 99px;
+      padding: 4px 14px; font-size: .78rem; font-weight: 600;
+      margin-bottom: 20px; letter-spacing: .04em;
+    }
+    .hero h1 {
+      font-family: var(--font-display);
+      font-size: clamp(1.7rem, 5vw, 2.8rem);
+      font-weight: 700; color: var(--white);
+      line-height: 1.2; margin-bottom: 16px;
+    }
+    .hero h1 em {
+      color: var(--gold); font-style: normal;
+    }
+    .hero-sub {
+      color: rgba(255,255,255,.8);
+      font-size: clamp(.9rem, 2.5vw, 1.05rem);
+      max-width: 520px; margin: 0 auto 32px;
+    }
+    .hero-stats {
+      display: flex; justify-content: center; gap: 32px; flex-wrap: wrap;
+      margin-bottom: 12px;
+    }
+    .hero-stat {
+      text-align: center;
+    }
+    .hero-stat .num {
+      font-family: var(--font-display);
+      font-size: 2rem; font-weight: 700; color: var(--gold);
+      display: block; line-height: 1;
+    }
+    .hero-stat .lbl {
+      color: rgba(255,255,255,.7); font-size: .72rem;
+      font-weight: 500; text-transform: uppercase; letter-spacing: .06em;
+    }
+    .hero-divider {
+      width: 1px; background: rgba(255,255,255,.2); height: 48px;
+      align-self: center;
+    }
+    .hero-source {
+      color: rgba(255,255,255,.45); font-size: .68rem;
+      margin-bottom: 32px;
+    }
+    .hero-source a { color: rgba(255,255,255,.6); text-decoration: underline; }
+    .hero-ctas {
+      display: flex; flex-wrap: wrap; gap: 12px; justify-content: center;
+    }
+
+    /* ============================================================
+       BUTTONS
+    ============================================================ */
+    .btn {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 14px 24px; border-radius: var(--radius-sm);
+      font-size: .95rem; font-weight: 600;
+      border: none; text-decoration: none;
+      transition: transform .15s, box-shadow .15s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .btn:active { transform: scale(.97); }
+    .btn-primary {
+      background: var(--gold); color: var(--blue);
+      box-shadow: 0 4px 16px rgba(242,193,78,.4);
+    }
+    .btn-primary:hover { box-shadow: 0 6px 20px rgba(242,193,78,.5); }
+    .btn-outline {
+      background: transparent; color: var(--white);
+      border: 2px solid rgba(255,255,255,.5);
+    }
+    .btn-outline:hover { border-color: #fff; background: rgba(255,255,255,.08); }
+    .btn-blue {
+      background: var(--blue); color: #fff;
+    }
+    .btn-red {
+      background: var(--red); color: #fff;
+    }
+    .btn-sm {
+      padding: 8px 16px; font-size: .82rem;
+    }
+    .btn:disabled { opacity: .55; cursor: not-allowed; transform: none !important; }
+
+    /* ============================================================
+       SECTION WRAPPER
+    ============================================================ */
+    .section {
+      padding: 56px 20px;
+      max-width: 960px; margin: 0 auto;
+    }
+    .section-full {
+      padding: 56px 20px;
+    }
+    .section-header {
+      display: flex; align-items: flex-start; justify-content: space-between;
+      flex-wrap: wrap; gap: 12px;
+      margin-bottom: 32px;
+    }
+    .section-tag {
+      font-size: .72rem; font-weight: 700;
+      text-transform: uppercase; letter-spacing: .1em;
+      color: var(--red); margin-bottom: 6px;
+    }
+    .section h2 {
+      font-family: var(--font-display);
+      font-size: clamp(1.4rem, 4vw, 2rem);
+      font-weight: 700; color: var(--blue);
+      line-height: 1.25;
+    }
+    .section-desc {
+      color: var(--text-2); margin-top: 8px;
+      font-size: .92rem; max-width: 560px;
+    }
+    .divider {
+      border: none; border-top: 1px solid var(--sand-dk);
+      margin: 0 auto;
+    }
+
+    /* ============================================================
+       GROUP TABS
+    ============================================================ */
+    .group-tabs {
+      display: flex; overflow-x: auto; gap: 8px;
+      padding-bottom: 4px; margin-bottom: 28px;
+      scrollbar-width: none;
+    }
+    .group-tabs::-webkit-scrollbar { display: none; }
+    .group-tab {
+      display: flex; align-items: center; gap: 6px;
+      padding: 9px 16px; border-radius: 99px;
+      background: var(--white); border: 2px solid var(--sand-dk);
+      font-size: .82rem; font-weight: 600; color: var(--text-2);
+      white-space: nowrap; cursor: pointer;
+      transition: all .2s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .group-tab:hover { border-color: var(--blue); color: var(--blue); }
+    .group-tab.active {
+      background: var(--blue); border-color: var(--blue);
+      color: var(--white);
+    }
+    .group-tab svg { width: 16px; height: 16px; }
+
+    /* ============================================================
+       CATEGORY PANELS
+    ============================================================ */
+    .cat-panels {
+      display: flex; flex-direction: column; gap: 20px;
+    }
+    .cat-panel {
+      background: var(--white);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+    .cat-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 16px 20px;
+      cursor: pointer;
+      border-bottom: 2px solid var(--sand);
+      background: var(--white);
+      gap: 12px;
+    }
+    .cat-header-left {
+      display: flex; align-items: center; gap: 10px;
+    }
+    .cat-icon {
+      width: 36px; height: 36px; border-radius: 8px;
+      background: var(--gold-lt); display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .cat-icon svg { width: 18px; height: 18px; color: var(--blue); }
+    .cat-title {
+      font-weight: 700; font-size: .95rem; color: var(--blue);
+    }
+    .cat-count {
+      font-size: .75rem; font-weight: 500;
+      background: var(--sand); color: var(--text-2);
+      padding: 2px 8px; border-radius: 99px;
+    }
+    .cat-chevron {
+      width: 20px; height: 20px; color: var(--text-2);
+      transition: transform .25s;
+      flex-shrink: 0;
+    }
+    .cat-panel.open .cat-chevron { transform: rotate(180deg); }
+    .cat-body {
+      display: none; padding: 0 20px 20px;
+    }
+    .cat-panel.open .cat-body { display: block; }
+
+    /* ============================================================
+       ITEM CARDS
+    ============================================================ */
+    .items-list {
+      display: flex; flex-direction: column; gap: 6px;
+      margin-top: 16px;
+    }
+    .item-card {
+      display: flex; align-items: flex-start; gap: 10px;
+      padding: 10px 14px;
+      background: var(--sand); border-radius: 8px;
+      position: relative;
+    }
+    .item-card.reported {
+      opacity: .6;
+    }
+    .item-card.reported::after {
+      content: 'Reportado';
+      position: absolute; right: 10px; top: 8px;
+      font-size: .65rem; font-weight: 700;
+      color: var(--red); letter-spacing: .05em;
+    }
+    .item-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--gold); flex-shrink: 0; margin-top: 6px;
+    }
+    .item-info { flex: 1; min-width: 0; }
+    .item-name {
+      font-weight: 600; font-size: .9rem; color: var(--text);
+    }
+    .item-meta {
+      font-size: .75rem; color: var(--text-2); margin-top: 2px;
+    }
+    .item-actions {
+      display: flex; gap: 4px; align-items: center;
+      flex-shrink: 0;
+    }
+    .btn-report {
+      background: none; border: 1px solid var(--sand-dk);
+      color: var(--text-2); border-radius: 6px;
+      padding: 4px 8px; font-size: .7rem; font-weight: 500;
+    }
+    .btn-report:hover { border-color: var(--red); color: var(--red); }
+    .add-item-form {
+      margin-top: 16px; padding-top: 16px;
+      border-top: 1px dashed var(--sand-dk);
+    }
+    .add-item-form h4 {
+      font-size: .82rem; font-weight: 700; color: var(--text-2);
+      text-transform: uppercase; letter-spacing: .06em;
+      margin-bottom: 12px;
+    }
+    .form-row {
+      display: flex; gap: 8px; flex-wrap: wrap;
+    }
+    .form-row input, .form-row select, .form-row textarea {
+      flex: 1; min-width: 140px;
+      padding: 10px 12px;
+      border: 1.5px solid var(--sand-dk);
+      border-radius: 8px; font-family: inherit;
+      font-size: .88rem; background: var(--white);
+      color: var(--text);
+      transition: border-color .2s;
+    }
+    .form-row input:focus, .form-row select:focus, .form-row textarea:focus {
+      outline: none; border-color: var(--blue);
+    }
+    .form-row .btn-blue { align-self: flex-end; padding: 10px 18px; font-size: .88rem; }
+
+    /* ============================================================
+       ACOPIO SECTION
+    ============================================================ */
+    .acopio-grid {
+      display: grid; gap: 16px;
+    }
+    .acopio-card {
+      background: var(--white); border-radius: var(--radius);
+      box-shadow: var(--shadow); padding: 20px;
+      border-left: 4px solid var(--gold);
+    }
+    .acopio-card h3 {
+      font-family: var(--font-display);
+      font-size: 1rem; font-weight: 700; color: var(--blue);
+      margin-bottom: 6px;
+    }
+    .acopio-badges {
+      display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px;
+    }
+    .badge {
+      font-size: .72rem; font-weight: 600;
+      padding: 3px 10px; border-radius: 99px;
+    }
+    .badge-blue { background: #e8eef7; color: var(--blue); }
+    .badge-red  { background: #fdecea; color: var(--red);  }
+    .badge-gold { background: var(--gold-lt); color: #7a5e00; }
+    .acopio-detail {
+      font-size: .83rem; color: var(--text-2);
+      display: flex; align-items: flex-start; gap: 6px; margin-top: 6px;
+    }
+    .acopio-detail svg { width: 14px; height: 14px; flex-shrink: 0; margin-top: 2px; color: var(--text-2); }
+    #map-container {
+      border-radius: var(--radius); overflow: hidden;
+      height: 340px; margin-bottom: 24px;
+      border: 2px solid var(--sand-dk);
+      box-shadow: var(--shadow);
+    }
+    .filter-row {
+      display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 20px;
+    }
+    .filter-row select {
+      padding: 10px 14px; border: 1.5px solid var(--sand-dk);
+      border-radius: 8px; font-family: inherit; font-size: .88rem;
+      background: var(--white); color: var(--text);
+    }
+
+    /* ============================================================
+       HOW TO HELP
+    ============================================================ */
+    .guide-bg {
+      background: var(--blue);
+    }
+    .guide-bg .section h2, .guide-bg .section-tag { color: var(--gold); }
+    .guide-bg .section-desc { color: rgba(255,255,255,.75); }
+    .guide-steps {
+      display: grid; gap: 16px;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    }
+    .guide-step {
+      background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.12);
+      border-radius: var(--radius); padding: 20px;
+    }
+    .guide-step-num {
+      font-family: var(--font-display);
+      font-size: 2rem; font-weight: 700; color: var(--gold);
+      line-height: 1; margin-bottom: 10px;
+    }
+    .guide-step h3 {
+      color: #fff; font-size: .95rem; font-weight: 700; margin-bottom: 6px;
+    }
+    .guide-step p {
+      color: rgba(255,255,255,.7); font-size: .83rem; line-height: 1.5;
+    }
+    .dont-list {
+      background: rgba(206,17,38,.15); border: 1px solid rgba(206,17,38,.3);
+      border-radius: var(--radius); padding: 20px; margin-top: 24px;
+    }
+    .dont-list h3 {
+      color: #ff9090; font-size: .9rem; font-weight: 700;
+      display: flex; align-items: center; gap: 6px; margin-bottom: 12px;
+    }
+    .dont-list ul { list-style: none; }
+    .dont-list li {
+      color: rgba(255,255,255,.8); font-size: .83rem;
+      padding: 5px 0; display: flex; gap: 8px; align-items: flex-start;
+    }
+    .dont-list li::before { content: '✕'; color: #ff9090; font-weight: 700; flex-shrink: 0; }
+
+    /* ============================================================
+       ABOUT
+    ============================================================ */
+    .about-box {
+      background: var(--white); border-radius: var(--radius);
+      box-shadow: var(--shadow); padding: 28px;
+      border-top: 4px solid var(--gold);
+    }
+    .about-box h3 {
+      font-family: var(--font-display);
+      font-size: 1.2rem; font-weight: 700; color: var(--blue); margin-bottom: 12px;
+    }
+    .about-box p { color: var(--text-2); font-size: .9rem; line-height: 1.7; margin-bottom: 10px; }
+    .official-links {
+      display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px;
+    }
+    .official-link {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 8px 16px; border-radius: 8px;
+      background: var(--sand); color: var(--blue);
+      text-decoration: none; font-size: .82rem; font-weight: 600;
+      border: 1.5px solid var(--sand-dk);
+      transition: border-color .2s;
+    }
+    .official-link:hover { border-color: var(--blue); }
+
+    /* ============================================================
+       FOOTER
+    ============================================================ */
+    footer {
+      background: var(--blue); color: rgba(255,255,255,.7);
+      text-align: center; padding: 32px 20px;
+      font-size: .82rem; line-height: 1.8;
+    }
+    footer strong { color: var(--gold); }
+    footer a { color: rgba(255,255,255,.7); }
+
+    /* ============================================================
+       MODAL
+    ============================================================ */
+    .modal-overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,.55); z-index: 2000;
+      align-items: center; justify-content: center;
+      padding: 20px;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal {
+      background: var(--white); border-radius: var(--radius);
+      padding: 28px; width: 100%; max-width: 480px;
+      box-shadow: 0 20px 60px rgba(0,0,0,.3);
+      max-height: 90vh; overflow-y: auto;
+    }
+    .modal h2 {
+      font-family: var(--font-display);
+      font-size: 1.3rem; font-weight: 700; color: var(--blue);
+      margin-bottom: 20px;
+    }
+    .modal-close {
+      float: right; background: none; border: none;
+      font-size: 1.4rem; color: var(--text-2); line-height: 1;
+      cursor: pointer; margin-top: -4px;
+    }
+    .form-group { margin-bottom: 14px; }
+    .form-group label {
+      display: block; font-size: .82rem; font-weight: 600;
+      color: var(--text-2); margin-bottom: 5px;
+    }
+    .form-group input, .form-group select, .form-group textarea {
+      width: 100%; padding: 10px 12px;
+      border: 1.5px solid var(--sand-dk); border-radius: 8px;
+      font-family: inherit; font-size: .9rem;
+      background: var(--white); color: var(--text);
+    }
+    .form-group input:focus, .form-group select:focus, .form-group textarea:focus {
+      outline: none; border-color: var(--blue);
+    }
+    .form-group textarea { min-height: 80px; resize: vertical; }
+    .form-hint { font-size: .76rem; color: var(--text-2); margin-top: 4px; }
+    .form-actions { display: flex; gap: 10px; margin-top: 20px; justify-content: flex-end; }
+    .sync-badge {
+      display: inline-flex; align-items: center; gap: 5px;
+      font-size: .72rem; font-weight: 600;
+      padding: 4px 10px; border-radius: 99px;
+    }
+    .sync-badge.pending { background: var(--gold-lt); color: #7a5e00; }
+    .sync-badge.synced  { background: #e0f5e9; color: #1a7a4a; }
+    .pulse {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: currentColor;
+      animation: pulse 1.4s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: .4; transform: scale(.7); }
+    }
+
+    /* ============================================================
+       TOAST
+    ============================================================ */
+    #toast {
+      position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(100px);
+      background: var(--blue); color: #fff;
+      padding: 12px 24px; border-radius: 99px;
+      font-size: .88rem; font-weight: 600;
+      z-index: 3000; transition: transform .35s ease;
+      white-space: nowrap; box-shadow: 0 4px 20px rgba(0,0,0,.3);
+      max-width: 90vw; overflow: hidden; text-overflow: ellipsis;
+    }
+    #toast.show { transform: translateX(-50%) translateY(0); }
+
+    /* ============================================================
+       INSTALL BANNER
+    ============================================================ */
+    #install-banner {
+      display: none; position: fixed; bottom: 0; left: 0; right: 0;
+      background: var(--white); border-top: 2px solid var(--gold);
+      padding: 12px 16px; z-index: 1500;
+      align-items: center; justify-content: space-between; gap: 12px;
+      box-shadow: 0 -4px 16px rgba(0,0,0,.1);
+    }
+    #install-banner.show { display: flex; }
+    #install-banner span { font-size: .82rem; font-weight: 600; color: var(--blue); }
+    #install-banner .actions { display: flex; gap: 8px; flex-shrink: 0; }
+
+    /* ============================================================
+       UTILITIES
+    ============================================================ */
+    .visually-hidden {
+      position: absolute; width: 1px; height: 1px;
+      overflow: hidden; clip: rect(0,0,0,0);
+    }
+    .mt-16 { margin-top: 16px; }
+    .mt-24 { margin-top: 24px; }
+  </style>
+</head>
+<body>
+
+<!-- STATUS BAR -->
+<div id="status-bar" role="status" aria-live="polite">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
+    <path d="M1 6s4-4 11-4 11 4 11 4M5 10s3-3 7-3 7 3 7 3M9 14s1.5-1.5 3-1.5 3 1.5 3 1.5M12 18v.01"/>
+  </svg>
+  <span id="status-text">Sin conexión — Los datos se guardan localmente</span>
+</div>
+
+<!-- NAV -->
+<nav role="navigation" aria-label="Menú principal">
+  <a href="#inicio" class="nav-logo" aria-label="Inicio — Ayuda Solidaria">
+    <div class="nav-logo-flag" aria-hidden="true">
+      <span></span><span></span>
+    </div>
+    <div class="nav-title">
+      Ayuda Solidaria
+      <small>RD → Venezuela</small>
+    </div>
+  </a>
+  <div class="nav-links" id="nav-links" role="list">
+    <a href="#necesidades" role="listitem">Qué se necesita</a>
+    <a href="#acopio" role="listitem">Centros de acopio</a>
+    <a href="#como-ayudar" role="listitem">Cómo ayudar</a>
+    <a href="#sobre" role="listitem">Sobre el proyecto</a>
+  </div>
+  <button class="nav-hamburger" aria-label="Abrir menú" aria-expanded="false" id="nav-toggle">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+      <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
+    </svg>
+  </button>
+</nav>
+
+<!-- HERO -->
+<section class="hero" id="inicio" aria-label="Portada">
+  <div class="hero-eyebrow" aria-label="Emergencia activa">
+    <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor" aria-hidden="true"><circle cx="6" cy="6" r="6"/></svg>
+    Emergencia activa · 24 jun 2026
+  </div>
+  <h1>Juntos por <em>Venezuela</em><br/>desde República Dominicana</h1>
+  <p class="hero-sub">
+    Coordinamos la donación de insumos humanitarios tras los terremotos de 7.2 y 7.5
+    del 24 de junio. Cada aporte cuenta. Cada lista es vida.
+  </p>
+  <div class="hero-stats" role="list" aria-label="Cifras del desastre">
+    <div class="hero-stat" role="listitem">
+      <span class="num" id="stat-muertos">—</span>
+      <span class="lbl">Fallecidos</span>
+    </div>
+    <div class="hero-divider" aria-hidden="true"></div>
+    <div class="hero-stat" role="listitem">
+      <span class="num" id="stat-heridos">—</span>
+      <span class="lbl">Heridos</span>
+    </div>
+    <div class="hero-divider" aria-hidden="true"></div>
+    <div class="hero-stat" role="listitem">
+      <span class="num" id="stat-replicas">—</span>
+      <span class="lbl">Réplicas</span>
+    </div>
+  </div>
+  <p class="hero-source">
+    Cifras de referencia, sujetas a actualización por las autoridades. Fuente:
+    <a href="https://www.paho.org/es/terremotos-venezuela-2026" target="_blank" rel="noopener noreferrer">OPS/OMS</a>.
+    <span id="stat-updated"></span>
+  </p>
+  <div class="hero-ctas">
+    <a href="#necesidades" class="btn btn-primary">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+      Ver qué se necesita
+    </a>
+    <button class="btn btn-outline" id="open-acopio-modal">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+      Agregar centro de acopio
+    </button>
+  </div>
+</section>
+
+<!-- NECESIDADES -->
+<section id="necesidades" aria-label="Lista de necesidades">
+  <div class="section">
+    <div class="section-header">
+      <div>
+        <div class="section-tag">Insumos necesarios</div>
+        <h2>¿Qué necesitan los afectados?</h2>
+        <p class="section-desc">
+          Selecciona un grupo para ver qué falta. Puedes agregar ítems nuevos —
+          lo que agregues no puede borrarse para proteger la integridad de la información.
+        </p>
+      </div>
+      <span id="sync-indicator" class="sync-badge pending" style="display:none">
+        <span class="pulse" aria-hidden="true"></span>
+        Pendiente de sincronizar
+      </span>
+    </div>
+
+    <!-- GROUP TABS -->
+    <div class="group-tabs" role="tablist" aria-label="Grupos de población">
+      <button class="group-tab active" role="tab" aria-selected="true" data-group="bebes">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M8 14s-2 0-2 2 2 2 2 2h8s2 0 2-2-2-2-2-2H8z"/></svg>
+        Bebés (0-2)
+      </button>
+      <button class="group-tab" role="tab" aria-selected="false" data-group="ninos">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="7" r="4"/><path d="M6 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"/></svg>
+        Niños (3-11)
+      </button>
+      <button class="group-tab" role="tab" aria-selected="false" data-group="adolescentes">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="7" r="4"/><path d="M5.5 21v-2A4.5 4.5 0 0 1 10 14.5h4A4.5 4.5 0 0 1 18.5 19v2"/><path d="M15 11l2 2 4-4"/></svg>
+        Adolescentes
+      </button>
+      <button class="group-tab" role="tab" aria-selected="false" data-group="adultos">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 20v-2a8 8 0 0 1 16 0v2"/></svg>
+        Adultos
+      </button>
+      <button class="group-tab" role="tab" aria-selected="false" data-group="mayores">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 20v-2a8 8 0 0 1 16 0v2"/><line x1="9" y1="20" x2="9" y2="16"/><line x1="15" y1="20" x2="15" y2="16"/></svg>
+        Adultos mayores
+      </button>
+      <button class="group-tab" role="tab" aria-selected="false" data-group="mascotas">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M10 5.172C10 3.782 8.423 2.679 6.5 3c-2.823.47-4.113 6.006-4 7 .08.703 1.725 1.722 3.656 1 1.261-.472 1.96-1.45 2.344-2.5"/><path d="M14.267 5.172c0-1.39 1.577-2.493 3.5-2.172 2.823.47 4.113 6.006 4 7-.08.703-1.725 1.722-3.656 1-1.261-.472-1.855-1.45-2.344-2.5"/><path d="M8 14v.5"/><path d="M16 14v.5"/><path d="M11.25 16.25h1.5L12 17l-.75-.75z"/><path d="M4.42 11.247A13.152 13.152 0 0 0 4 14.556C4 18.728 7.582 21 12 21s8-2.272 8-6.444c0-1.273-.23-2.48-.42-3.309"/></svg>
+        Mascotas
+      </button>
+    </div>
+
+    <!-- CATEGORY PANELS (rendered by JS) -->
+    <div class="cat-panels" id="cat-panels" aria-live="polite">
+    </div>
+  </div>
+</section>
+
+<hr class="divider" />
+
+<!-- ACOPIO -->
+<section id="acopio" class="section-full" aria-label="Centros de acopio">
+  <div class="section" style="padding-bottom: 0;">
+    <div class="section-header">
+      <div>
+        <div class="section-tag">Centros de acopio</div>
+        <h2>¿Dónde entregar donaciones?</h2>
+        <p class="section-desc">Puntos de recolección activos en distintos países. Filtra por tu país y agrega un centro nuevo.</p>
+      </div>
+      <button class="btn btn-blue" id="open-acopio-modal-2" aria-label="Agregar nuevo centro de acopio">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+        Agregar centro
+      </button>
+    </div>
+    <div class="filter-row">
+      <select id="country-filter" aria-label="Filtrar por país">
+        <option value="">Todos los países</option>
+        <option>República Dominicana</option>
+        <option>Venezuela</option>
+        <option>Colombia</option>
+        <option>México</option>
+        <option>Estados Unidos</option>
+        <option>El Salvador</option>
+        <option>España</option>
+        <option>Otro</option>
+      </select>
+    </div>
+  </div>
+  <div style="max-width:960px; margin: 0 auto; padding: 0 20px;">
+    <div id="map-container" role="img" aria-label="Mapa de centros de acopio"></div>
+    <div class="acopio-grid" id="acopio-list" aria-live="polite"></div>
+  </div>
+</section>
+
+<hr class="divider" style="margin-top: 48px;" />
+
+<!-- HOW TO HELP -->
+<section id="como-ayudar" class="guide-bg section-full" aria-label="Cómo ayudar">
+  <div class="section">
+    <div class="section-tag">Guía rápida</div>
+    <h2>¿Cómo puedo ayudar?</h2>
+    <p class="section-desc">Pasos claros para que tu donación llegue en las mejores condiciones.</p>
+    <div class="guide-steps mt-24">
+      <div class="guide-step">
+        <div class="guide-step-num">01</div>
+        <h3>Elige qué donar</h3>
+        <p>Revisa la lista de insumos que se necesitan y selecciona lo que puedas conseguir. Prioriza medicamentos vigentes y alimentos no perecederos.</p>
+      </div>
+      <div class="guide-step">
+        <div class="guide-step-num">02</div>
+        <h3>Empaca correctamente</h3>
+        <p>Usa bolsas o cajas selladas, etiqueta el contenido, verifica fechas de vencimiento. Separa medicamentos de alimentos.</p>
+      </div>
+      <div class="guide-step">
+        <div class="guide-step-num">03</div>
+        <h3>Localiza el centro más cercano</h3>
+        <p>Consulta la sección "Centros de acopio", filtra por tu país y lleva tu donación en el horario indicado.</p>
+      </div>
+      <div class="guide-step">
+        <div class="guide-step-num">04</div>
+        <h3>Registra tu entrega</h3>
+        <p>Si puedes, agrega una nota en este sitio de lo que entregaste y dónde. Eso ayuda a coordinar y evitar duplicados.</p>
+      </div>
+      <div class="guide-step">
+        <div class="guide-step-num">05</div>
+        <h3>Comparte la plataforma</h3>
+        <p>Más personas = más ayuda. Comparte este sitio por WhatsApp, Instagram o donde puedas. Cada enlace importa.</p>
+      </div>
+    </div>
+    <div class="dont-list" role="note" aria-label="Qué NO enviar">
+      <h3>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+        ¿Qué NO enviar?
+      </h3>
+      <ul>
+        <li>Medicamentos vencidos o sin etiqueta</li>
+        <li>Ropa sucia, rota o muy desgastada</li>
+        <li>Alimentos perecederos sin refrigeración</li>
+        <li>Artículos rotos o dañados</li>
+        <li>Líquidos sin sellado hermético</li>
+        <li>Juguetes con piezas pequeñas para bebés</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ABOUT -->
+<section id="sobre" aria-label="Sobre el proyecto">
+  <div class="section">
+    <div class="section-tag">Sobre este proyecto</div>
+    <h2>Una iniciativa ciudadana</h2>
+    <div class="about-box mt-16">
+      <h3>¿Quiénes somos?</h3>
+      <p>
+        <strong>Ayuda Solidaria de RD hacia Venezuela</strong> nació el 24 de junio de 2026 como una respuesta ciudadana inmediata
+        de la comunidad dominicana ante los devastadores terremotos de magnitud 7.2 y 7.5 que sacudieron Venezuela.
+      </p>
+      <p>
+        Esta plataforma es de código abierto, sin fines de lucro y sin afiliación política.
+        Cualquier persona en cualquier país puede consultar y contribuir a las listas de necesidades
+        y centros de acopio. La información no puede ser borrada una vez publicada, garantizando
+        integridad y confianza.
+      </p>
+      <p>
+        Para verificar información oficial, recursos y canales autorizados de ayuda humanitaria,
+        consulta las fuentes oficiales:
+      </p>
+      <div class="official-links">
+        <a href="https://www.cruzroja.org" class="official-link" target="_blank" rel="noopener noreferrer" aria-label="Cruz Roja Internacional (abre en nueva pestaña)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+          Cruz Roja Internacional
+        </a>
+        <a href="https://www.unhcr.org/es" class="official-link" target="_blank" rel="noopener noreferrer" aria-label="ACNUR (abre en nueva pestaña)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+          ACNUR
+        </a>
+        <a href="https://www.paho.org/es/terremotos-venezuela-2026" class="official-link" target="_blank" rel="noopener noreferrer" aria-label="OPS/OMS — Respuesta ante el terremoto (abre en nueva pestaña)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+          OPS/OMS
+        </a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer role="contentinfo">
+  <p>
+    <strong>Ayuda Solidaria de RD hacia Venezuela</strong><br/>
+    © 2026 — Proyecto solidario de código abierto, sin fines de lucro.<br/>
+    Creado por ciudadanos dominicanos para apoyar a Venezuela.<br/>
+    <small style="opacity:.6">Este sitio no reemplaza canales oficiales de ayuda humanitaria.</small>
+  </p>
+</footer>
+
+<!-- TOAST -->
+<div id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
+
+<!-- INSTALL BANNER -->
+<div id="install-banner" role="region" aria-label="Instalar aplicación">
+  <span>📲 Instala esta app para usarla sin conexión</span>
+  <div class="actions">
+    <button class="btn btn-blue btn-sm" id="install-btn">Instalar</button>
+    <button class="btn-report btn-sm" id="dismiss-install" aria-label="Cerrar aviso de instalación">Ahora no</button>
+  </div>
+</div>
+
+<!-- MODAL: AGREGAR CENTRO DE ACOPIO -->
+<div class="modal-overlay" id="acopio-modal" role="dialog" aria-modal="true" aria-labelledby="modal-title-acopio">
+  <div class="modal">
+    <button class="modal-close" aria-label="Cerrar formulario">×</button>
+    <h2 id="modal-title-acopio">Agregar Centro de Acopio</h2>
+    <div class="form-group">
+      <label for="ac-nombre">Nombre del centro *</label>
+      <input type="text" id="ac-nombre" placeholder="Ej: Iglesia San Juan de la Maguana" required />
+    </div>
+    <div class="form-group">
+      <label for="ac-pais">País *</label>
+      <select id="ac-pais" required>
+        <option value="">Selecciona un país</option>
+        <option>República Dominicana</option>
+        <option>Venezuela</option>
+        <option>Colombia</option>
+        <option>México</option>
+        <option>Estados Unidos</option>
+        <option>El Salvador</option>
+        <option>España</option>
+        <option>Otro</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label for="ac-ciudad">Ciudad</label>
+      <input type="text" id="ac-ciudad" placeholder="Ciudad o municipio" />
+    </div>
+    <div class="form-group">
+      <label for="ac-direccion">Dirección</label>
+      <input type="text" id="ac-direccion" placeholder="Dirección completa" />
+    </div>
+    <div class="form-group">
+      <label for="ac-horario">Horario</label>
+      <input type="text" id="ac-horario" placeholder="Ej: Lun-Vie 8am-5pm" />
+    </div>
+    <div class="form-group">
+      <label for="ac-contacto">Contacto (teléfono o correo)</label>
+      <input type="text" id="ac-contacto" placeholder="809-555-0000 o correo@ejemplo.com" />
+    </div>
+    <div class="form-group">
+      <label for="ac-recibe">¿Qué reciben?</label>
+      <textarea id="ac-recibe" placeholder="Ej: Medicamentos, ropa, alimentos no perecederos..."></textarea>
+    </div>
+    <div class="form-group">
+      <label for="ac-quien">Tu nombre (opcional, anónimo por defecto)</label>
+      <input type="text" id="ac-quien" placeholder="Dejar en blanco para ser anónimo" />
+    </div>
+    <p class="form-hint">Nota: si no indicas coordenadas, intentaremos ubicar el centro automáticamente por ciudad/país; si no es posible, aparecerá solo en la lista, no en el mapa.</p>
+    <div class="form-actions">
+      <button class="btn btn-outline" style="color: var(--text-2); border-color: var(--sand-dk);" id="cancel-acopio">Cancelar</button>
+      <button class="btn btn-blue" id="save-acopio">Guardar centro</button>
+    </div>
+  </div>
+</div>
+
+<!-- Firebase (compat SDK vía CDN, no requiere build step) -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<!-- Leaflet JS -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<script src="firebase-config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
