@@ -1,0 +1,33 @@
+{
+  "name": "Ayuda Solidaria — RD hacia Venezuela",
+  "short_name": "Ayuda Solidaria",
+  "description": "Plataforma de coordinación de ayuda humanitaria de República Dominicana hacia Venezuela tras los terremotos del 24 de junio de 2026.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#FAF6EF",
+  "theme_color": "#002D62",
+  "lang": "es",
+  "dir": "ltr",
+  "icons": [
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
